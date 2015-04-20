@@ -131,6 +131,19 @@ static inline int task_has_rt_policy(struct task_struct *p)
 	return rt_policy(p->policy);
 }
 
+static inline int other_rr_policy(int policy)
+{
+	if(unlikely(policy == SCHED_OTHER_RR))
+		return 1;
+	return 0;
+}
+
+static inline int task_has_other_rr_policy(struct task_struct *p)
+{
+	return other_rr_policy(p->policy);
+}
+
+
 /*
  * This is the priority-queue data structure of the RT scheduling class:
  */
@@ -406,6 +419,13 @@ struct cfs_rq {
 #endif
 };
 
+/* Sched_other_rr classes' related field in a runqueue: */
+struct other_rr_rq {
+	struct list_head queue;
+	unsigned long nr_running;
+	struct list_head *other_rr_load_balance_head, *other_rr_load_balance_curr;
+};
+
 /* Real-Time classes' related field in a runqueue: */
 struct rt_rq {
 	struct rt_prio_array active;
@@ -502,6 +522,7 @@ struct rq {
 	u64 nr_switches;
 
 	struct cfs_rq cfs;
+	struct other_rr_rq other_rr;
 	struct rt_rq rt;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -1896,15 +1917,17 @@ static void sched_irq_time_avg_update(struct rq *rq, u64 curr_irq_time) { }
 
 #include "sched_stats.h"
 #include "sched_idletask.c"
+#include "sched_other_rr.c"
 #include "sched_fair.c"
 #include "sched_rt.c"
+int other_rr_time_slice = (DEF_TIMESLICE / 4);
 #ifdef CONFIG_SCHED_DEBUG
 # include "sched_debug.c"
 #endif
 
 #define sched_class_highest (&rt_sched_class)
 #define for_each_class(class) \
-   for (class = sched_class_highest; class; class = class->next)
+	for (class = sched_class_highest; class; class = class->next)
 
 static void inc_nr_running(struct rq *rq)
 {
@@ -2098,6 +2121,7 @@ task_hot(struct task_struct *p, u64 now, struct sched_domain *sd)
 {
 	s64 delta;
 
+	/* MRJ -- task_hot does not support other_rr_sched_class */
 	if (p->sched_class != &fair_sched_class)
 		return 0;
 
@@ -2685,6 +2709,10 @@ static void __sched_fork(struct task_struct *p)
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	INIT_HLIST_HEAD(&p->preempt_notifiers);
 #endif
+
+	/* MRJ -- init other_rr */
+	INIT_LIST_HEAD(&p->other_rr_run_list);
+	p->task_time_slice = other_rr_time_slice;
 }
 
 /*
@@ -2729,7 +2757,7 @@ void sched_fork(struct task_struct *p, int clone_flags)
 	 */
 	p->prio = current->normal_prio;
 
-	if (!rt_prio(p->prio))
+	if (!rt_prio(p->prio) && (p->sched_class != &other_rr_sched_class))
 		p->sched_class = &fair_sched_class;
 
 	if (p->sched_class->task_fork)
@@ -6284,8 +6312,12 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
 
 	if (rt_prio(prio))
 		p->sched_class = &rt_sched_class;
+	else {
+	if (prev_class == &other_rr_sched_class)
+		p->sched_class = &other_rr_sched_class;
 	else
 		p->sched_class = &fair_sched_class;
+	}
 
 	p->prio = prio;
 
@@ -6508,6 +6540,7 @@ static int __sched_setscheduler(struct task_struct *p, int policy,
 
 	/* may grab non-irq protected spin_locks */
 	BUG_ON(in_interrupt());
+
 recheck:
 	/* double check policy once rq lock held */
 	if (policy < 0) {
@@ -6518,8 +6551,8 @@ recheck:
 		policy &= ~SCHED_RESET_ON_FORK;
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
-				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-				policy != SCHED_IDLE)
+		policy != SCHED_NORMAL && policy != SCHED_BATCH &&
+		policy != SCHED_IDLE)
 			return -EINVAL;
 	}
 
@@ -7094,6 +7127,7 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+	case SCHED_OTHER_RR:
 		ret = 0;
 		break;
 	}
@@ -7119,6 +7153,7 @@ SYSCALL_DEFINE1(sched_get_priority_min, int, policy)
 	case SCHED_NORMAL:
 	case SCHED_BATCH:
 	case SCHED_IDLE:
+	case SCHED_OTHER_RR:
 		ret = 0;
 	}
 	return ret;
@@ -7167,6 +7202,18 @@ SYSCALL_DEFINE2(sched_rr_get_interval, pid_t, pid,
 out_unlock:
 	rcu_read_unlock();
 	return retval;
+}
+
+/**
+ * sys_sched_getrrquantum - return the default timeslice for the other round
+ * robin scheduler.
+ *
+ * this syscall returns the default timeslice value for the other_rr
+ * scheduler. A value of '0' means infinity.
+ */
+SYSCALL_DEFINE0(sched_other_rr_getquantum)
+{
+	return other_rr_time_slice;
 }
 
 static const char stat_nam[] = TASK_STATE_TO_CHAR_STR;
@@ -9558,6 +9605,10 @@ static void init_cfs_rq(struct cfs_rq *cfs_rq, struct rq *rq)
 	cfs_rq->min_vruntime = (u64)(-(1LL << 20));
 }
 
+static void init_other_rr_rq(struct other_rr_rq * other_rr_rq){
+	INIT_LIST_HEAD(&other_rr_rq->queue);
+}
+
 static void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
 {
 	struct rt_prio_array *array;
@@ -9730,6 +9781,9 @@ void __init sched_init(void)
 		rq->calc_load_update = jiffies + LOAD_FREQ;
 		init_cfs_rq(&rq->cfs, rq);
 		init_rt_rq(&rq->rt, rq);
+
+		init_other_rr_rq(&rq->other_rr);
+
 #ifdef CONFIG_FAIR_GROUP_SCHED
 		init_task_group.shares = init_task_group_load;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
@@ -10677,6 +10731,7 @@ cpu_cgroup_can_attach_task(struct cgroup *cgrp, struct task_struct *tsk)
 		return -EINVAL;
 #else
 	/* We don't support RT-tasks being in separate groups */
+	/* MRJ -- have not considered cgroups support for other_rr_sched_class */
 	if (tsk->sched_class != &fair_sched_class)
 		return -EINVAL;
 #endif
