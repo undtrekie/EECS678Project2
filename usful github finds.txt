@@ -1,0 +1,4 @@
+Useful maybe?
+https://github.com/parisk/round-robin
+https://github.com/TimMikeladze/css422-homework3
+https://github.com/luke-plewa/rr-scheduler
