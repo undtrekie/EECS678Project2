@@ -31,7 +31,8 @@ static void update_curr_other_rr(struct rq *rq)
  */
 static void enqueue_task_other_rr(struct rq *rq, struct task_struct *p, int wakeup, bool b)
 {
-	// not yet implemented
+	list_add_tail(&p->other_rr_run_list,&rq->other_rr.queue);
+	rq->other_rr.nr_running += 1;
 }
 
 static void dequeue_task_other_rr(struct rq *rq, struct task_struct *p, int sleep)
@@ -39,7 +40,8 @@ static void dequeue_task_other_rr(struct rq *rq, struct task_struct *p, int slee
 	// first update the task's runtime statistics
 	update_curr_other_rr(rq);
 
-	// not yet implemented
+	list_del(&p->other_rr_run_list);
+	rq->other_rr.nr_running -= 1;
 }
 
 /*
@@ -57,7 +59,7 @@ static void requeue_task_other_rr(struct rq *rq, struct task_struct *p)
 static void
 yield_task_other_rr(struct rq *rq)
 {
-	// not yet implemented
+	requeue_task_other_rr(rq,&rq->other_rr);
 }
 
 /*
@@ -77,16 +79,16 @@ static struct task_struct *pick_next_task_other_rr(struct rq *rq)
 	struct list_head *queue;
 	struct other_rr_rq *other_rr_rq;
 
-	// not yet implemented
-
-	/* after selecting a task, we need to set a timer to maintain correct
-	 * runtime statistics. You can uncomment this line after you have
-	 * written the code to select the appropriate task.
-	 */
-	//next->se.exec_start = rq->clock;
-	
-	/* you need to return the selected task here */
-	return NULL;
+	if(rq->other_rr.nr_running >= 1)
+	{
+		next = list_first_entry(&rq->other_rr.queue,struct task_struct,other_rr_run_list);
+		next->se.exec_start = rq->clock;
+		return next;
+	}
+	else
+	{
+		return NULL;
+	}
 }
 
 static void put_prev_task_other_rr(struct rq *rq, struct task_struct *p)
@@ -179,7 +181,22 @@ static void task_tick_other_rr(struct rq *rq, struct task_struct *p,int queued)
 	// first update the task's runtime statistics
 	update_curr_other_rr(rq);
 
-	// not yet implemented
+	if(other_rr_time_slice == 0)
+	{
+		return;
+	}
+	if(p->task_time_slice > 0)
+	{
+		p->task_time_slice -= 1;
+		return;
+	}
+	else
+	{
+		p->task_time_slice = other_rr_time_slice;
+		list_del(&p->other_rr_run_list);
+		list_add_tail(&p->other_rr_run_list,&rq->other_rr.queue);
+		set_tsk_need_resched(p);
+	}
 }
 
 /*
