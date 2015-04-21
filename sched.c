@@ -6504,6 +6504,9 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	case SCHED_RR:
 		p->sched_class = &rt_sched_class;
 		break;
+	case SCHED_THER_RR:
+		p->sched_class = &other_rr_sched_class;
+		break;
 	}
 
 	p->rt_priority = prio;
@@ -6552,7 +6555,7 @@ recheck:
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 		policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-		policy != SCHED_IDLE)
+		policy != SCHED_IDLE && policy != SCHED_OTHER_RR)
 			return -EINVAL;
 	}
 
@@ -7214,6 +7217,12 @@ out_unlock:
 SYSCALL_DEFINE0(sched_other_rr_getquantum)
 {
 	return other_rr_time_slice;
+}
+SYSCALL_DEFINE1(sched_other_rr_setquantum,unsinged int quantm)
+{
+	other_rr_time_slice = quantum;
+	printk("Custome syste call reached, new time quantum: %d", quantum);
+	return 0;
 }
 
 static const char stat_nam[] = TASK_STATE_TO_CHAR_STR;
