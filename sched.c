@@ -76,7 +76,7 @@
 #include <asm/irq_regs.h>
 
 #include "sched_cpupri.h"
-#include "sched_other_rr.c"
+//#include "sched_other_rr.c"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
