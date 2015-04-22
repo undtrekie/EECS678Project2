@@ -76,6 +76,7 @@
 #include <asm/irq_regs.h>
 
 #include "sched_cpupri.h"
+#include "sched_other_rr.c"
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
@@ -6504,7 +6505,7 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	case SCHED_RR:
 		p->sched_class = &rt_sched_class;
 		break;
-	case SCHED_THER_RR:
+	case SCHED_OTHER_RR:
 		p->sched_class = &other_rr_sched_class;
 		break;
 	}
@@ -7218,7 +7219,7 @@ SYSCALL_DEFINE0(sched_other_rr_getquantum)
 {
 	return other_rr_time_slice;
 }
-SYSCALL_DEFINE1(sched_other_rr_setquantum,unsinged int quantm)
+SYSCALL_DEFINE1(sched_other_rr_setquantum,unsinged int quantum)
 {
 	other_rr_time_slice = quantum;
 	printk("Custome syste call reached, new time quantum: %d", quantum);
