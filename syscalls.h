@@ -885,6 +885,4 @@ asmlinkage long sys_perf_event_open(
 asmlinkage long sys_mmap_pgoff(unsigned long addr, unsigned long len,
 			unsigned long prot, unsigned long flags,
 			unsigned long fd, unsigned long pgoff);
-
-asmlinkage long sys_sched_other_rr_getquantum(void);
 #endif
