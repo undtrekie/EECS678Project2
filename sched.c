@@ -7221,10 +7221,9 @@ SYSCALL_DEFINE0(sched_other_rr_getquantum)
 
 SYSCALL_DEFINE1(sched_other_rr_setquantum, unsigned int, quantum)
 {
-	sched_other_rr_setquantum = quantum;
 	other_rr_time_slice = quantum;
 	printk("Custom system call reached, new time quantum: %d", quantum);
-	return 0;
+	return;
 }
 
 static const char stat_nam[] = TASK_STATE_TO_CHAR_STR;
