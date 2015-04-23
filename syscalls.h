@@ -877,6 +877,10 @@ asmlinkage long sys_ppoll(struct pollfd __user *, unsigned int,
 
 int kernel_execve(const char *filename, char *const argv[], char *const envp[]);
 
+asmlinkage long sys_other_rr_getquantum(void);
+
+asmlinkage long sys_other_rr_setquantum(void,unsigned int,void);
+
 
 asmlinkage long sys_perf_event_open(
 		struct perf_event_attr __user *attr_uptr,
