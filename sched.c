@@ -7218,11 +7218,11 @@ SYSCALL_DEFINE0(sched_other_rr_getquantum)
 {
 	return other_rr_time_slice;
 }
+
 SYSCALL_DEFINE1(sched_other_rr_setquantum, unsigned int, quantum)
 {
-	
+	sched_other_rr_setquantum = quantum;
 	other_rr_time_slice = quantum;
-	sched_other_rr_setquantum(quantum);
 	printk("Custom system call reached, new time quantum: %d", quantum);
 	return 0;
 }
